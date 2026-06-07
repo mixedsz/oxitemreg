@@ -38,13 +38,8 @@ body {
 
 .hidden { display: none !important; }
 
-/* ─── Backdrop ──────────────────────────────────────────────────────────── */
-#backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(2px);
-  z-index: 10;
-}
+/* No backdrop — panel floats directly over the game world */
+#backdrop { display: none !important; }
 
 /* ─── Panel ─────────────────────────────────────────────────────────────── */
 #panel {
@@ -262,6 +257,16 @@ body {
   padding: 2px 6px; border-radius: 4px;
 }
 .card-weight { font-size: 11px; color: var(--text-secondary); }
+
+/* ─── Pager ──────────────────────────────────────────────────────────────── */
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 10px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 13px; color: var(--text-secondary);
+}
+.pager.hidden { display: none; }
 
 /* ─── Empty State ────────────────────────────────────────────────────────── */
 .empty-state {

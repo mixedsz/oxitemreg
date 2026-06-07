@@ -7,9 +7,6 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<!-- ── Backdrop ─────────────────────────────────────────────────────────── -->
-<div id="backdrop" class="hidden"></div>
-
 <!-- ── Main Panel ──────────────────────────────────────────────────────── -->
 <div id="panel" class="hidden">
   <!-- Header -->
@@ -97,6 +94,11 @@
       </button>
     </div>
     <div class="item-grid" id="gridOx"></div>
+    <div class="pager" id="oxPager">
+      <button class="btn btn-secondary btn-sm" id="oxPrev">&#8592; Prev</button>
+      <span id="oxPageInfo"></span>
+      <button class="btn btn-secondary btn-sm" id="oxNext">Next &#8594;</button>
+    </div>
     <div class="empty-state hidden" id="emptyOx">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <p>No items found in ox_inventory.<br/>Is ox_inventory running?</p>
