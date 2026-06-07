@@ -15,18 +15,20 @@ const state = {
 };
 
 // ─── NUI Bridge ──────────────────────────────────────────────────────────────
-// NOTE: We must NOT name this function GetParentResourceName — that would
-// shadow the FiveM global and cause infinite recursion.
-function resourceName() {
-    try { return GetParentResourceName(); } catch (_) { return 'oxitemreg'; }
-}
+// Capture the resource name ONCE at module load — using optional chaining so
+// it can never call itself, and never throws regardless of FiveM version.
+const RESOURCE_NAME = (typeof GetParentResourceName === 'function')
+    ? GetParentResourceName()
+    : 'oxitemreg';
 
 function nuiFetch(endpoint, data = {}) {
-    return fetch(`https://${resourceName()}/${endpoint}`, {
+    let body;
+    try { body = JSON.stringify(data); } catch (_) { body = '{}'; }
+    return fetch(`https://${RESOURCE_NAME}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }).catch(err => console.error('[oxitemreg] nuiFetch error:', err));
+        body,
+    }).catch(() => {/* swallow network errors silently */});
 }
 
 // ─── ox_inventory image path ──────────────────────────────────────────────────

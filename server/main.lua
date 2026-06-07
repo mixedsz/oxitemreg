@@ -34,21 +34,22 @@ end
 
 ---Register or update an item in ox_inventory at runtime
 local function applyItemToOxInventory(item)
+    -- ox_inventory:RegisterItem(name, data) — name is the first argument, NOT inside the table
     local ok, err = pcall(function()
-        exports.ox_inventory:RegisterItem({
-            name  = item.name,
-            label = item.label,
-            weight = item.weight or 100,
-            stack = item.stack ~= false,
-            close = item.close ~= false,
-            consume = item.consume and 1 or nil,
+        exports.ox_inventory:RegisterItem(item.name, {
+            label       = item.label,
+            weight      = item.weight or 100,
+            stack       = item.stack ~= false,
+            close       = item.close ~= false,
+            consume     = item.consume and 1 or nil,
             description = item.description or nil,
-            client = {
-                image = item.name,
-            },
+            client      = { image = item.name },
         })
     end)
-    return ok, err
+    if not ok then
+        print('^1[oxitemreg] RegisterItem failed for "' .. tostring(item.name) .. '": ' .. tostring(err) .. '^7')
+    end
+    return ok
 end
 
 ---Download and cache an image from a URL, returns base64 string
