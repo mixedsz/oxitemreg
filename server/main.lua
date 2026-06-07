@@ -79,8 +79,27 @@ end
 AddEventHandler('onResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     loadRegisteredItems()
-    oxItems = fetchOxItems()
-    print('^2[oxitemreg] Started. ' .. #registeredItems .. ' custom item(s) loaded.^7')
+
+    -- Wait one tick for ox_inventory to finish its own startup before injecting
+    Citizen.SetTimeout(500, function()
+        local applied, failed = 0, 0
+        for _, item in ipairs(registeredItems) do
+            if applyItemToOxInventory(item) then
+                applied = applied + 1
+            else
+                failed = failed + 1
+            end
+        end
+        if applied > 0 then
+            print('^2[oxitemreg] Auto-applied ' .. applied .. ' custom item(s) to ox_inventory.^7')
+        end
+        if failed > 0 then
+            print('^1[oxitemreg] ' .. failed .. ' item(s) failed to auto-apply — check errors above.^7')
+        end
+        oxItems = fetchOxItems()
+    end)
+
+    print('^2[oxitemreg] Started. ' .. #registeredItems .. ' custom item(s) will be injected into ox_inventory.^7')
 end)
 
 -- ─── NUI Callbacks ───────────────────────────────────────────────────────────

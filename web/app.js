@@ -544,7 +544,12 @@ window.addEventListener('message', e => {
         }
 
         case 'applyResponse': {
-            toast(`Applied: ${applied} item(s). Failed: ${failed}.`, failed > 0 ? 'error' : 'success');
+            if (applied > 0) {
+                toast(`Applied ${applied} item(s). Reconnect to see them in-game.`, 'success', 5000);
+            }
+            if (failed > 0) {
+                toast(`${failed} item(s) failed — check server console.`, 'error', 5000);
+            }
             break;
         }
 
