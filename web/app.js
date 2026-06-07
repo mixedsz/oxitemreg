@@ -4,32 +4,32 @@
 const state = {
     myItems: [],
     oxItems: [],
-    oxFiltered: [],      // current filtered+sorted slice
+    oxFiltered: [],
     selectedMy: new Set(),
     selectedOx: new Set(),
     editingItem: null,
     editingOxItem: null,
-
-    // virtual scroll state for ox grid
     oxPage: 0,
     OX_PAGE_SIZE: 120,
+    showDuplicatesOnly: false,
 };
 
 // ─── NUI Bridge ──────────────────────────────────────────────────────────────
+// NOTE: We must NOT name this function GetParentResourceName — that would
+// shadow the FiveM global and cause infinite recursion.
+function resourceName() {
+    try { return GetParentResourceName(); } catch (_) { return 'oxitemreg'; }
+}
+
 function nuiFetch(endpoint, data = {}) {
-    return fetch(`https://${GetParentResourceName()}/${endpoint}`, {
+    return fetch(`https://${resourceName()}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
-    }).catch(() => {});
+    }).catch(err => console.error('[oxitemreg] nuiFetch error:', err));
 }
 
-function GetParentResourceName() {
-    return (window.GetParentResourceName && window.GetParentResourceName()) || 'oxitemreg';
-}
-
-// ─── ox_inventory image path ─────────────────────────────────────────────────
-// Images are served by ox_inventory's own NUI at this path
+// ─── ox_inventory image path ──────────────────────────────────────────────────
 function oxImageSrc(name) {
     return `nui://ox_inventory/web/images/${name}.png`;
 }
@@ -44,7 +44,7 @@ function toast(msg, type = 'info', duration = 3500) {
 }
 
 // ─── Confirm dialog ───────────────────────────────────────────────────────────
-function confirm(title, message) {
+function showConfirm(title, message) {
     return new Promise(resolve => {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMessage').textContent = message;
@@ -64,32 +64,48 @@ function confirm(title, message) {
 }
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
-const customImageCache = {};  // url -> base64 for user-supplied URLs
+const customImageCache = {};
 
-function resolveImageSrc(item, isOx = false) {
+function resolveImageSrc(item) {
     if (item.imageData) return item.imageData;
     if (item.imageUrl && customImageCache[item.imageUrl]) return customImageCache[item.imageUrl];
     if (item.imageUrl) return item.imageUrl;
-    // For ox_inventory items use the NUI path directly
-    const imgName = (item.image || item.name);
-    return imgName ? oxImageSrc(imgName) : null;
+    const name = item.image || item.name;
+    return name ? oxImageSrc(name) : null;
 }
 
 function escHtml(str) {
-    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function cardImageHTML(item, isOx = false) {
-    const src = resolveImageSrc(item, isOx);
+function cardImageHTML(item) {
+    const src = resolveImageSrc(item);
     if (!src) return `<svg style="width:40px;height:40px;color:var(--text-muted)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-    // Use loading="lazy" so the browser doesn't decode all 2000+ images at once
     return `<img src="${escHtml(src)}" loading="lazy" decoding="async" alt="" style="max-width:100%;max-height:100%;object-fit:contain" onerror="this.style.display='none'" />`;
+}
+
+// ─── Duplicate detection ──────────────────────────────────────────────────────
+// Returns a Set of item names that share their label with at least one other item.
+function buildDuplicateLabelSet(items) {
+    const labelCount = {};
+    items.forEach(it => {
+        const key = (it.label || it.name).toLowerCase();
+        labelCount[key] = (labelCount[key] || 0) + 1;
+    });
+    const dupeSet = new Set();
+    items.forEach(it => {
+        const key = (it.label || it.name).toLowerCase();
+        if (labelCount[key] > 1) dupeSet.add(it.name);
+    });
+    return dupeSet;
 }
 
 // ─── Render – My Items ────────────────────────────────────────────────────────
 function renderMyItems(filter = '') {
-    const grid  = document.getElementById('gridMy');
-    const empty = document.getElementById('emptyMy');
+    const grid    = document.getElementById('gridMy');
+    const empty   = document.getElementById('emptyMy');
     const countEl = document.getElementById('countMy');
 
     const f = filter.toLowerCase();
@@ -119,7 +135,7 @@ function renderMyItems(filter = '') {
         div.dataset.type = 'my';
         div.innerHTML = `
             <input type="checkbox" class="card-checkbox" ${sel ? 'checked' : ''} onclick="event.stopPropagation()" data-cb-name="${escHtml(item.name)}" data-cb-type="my" />
-            <div class="card-image">${cardImageHTML(item, false)}</div>
+            <div class="card-image">${cardImageHTML(item)}</div>
             <div class="card-name">${escHtml(item.label || item.name)}</div>
             <div class="card-key">${escHtml(item.name)}</div>
             <div class="card-meta">
@@ -135,19 +151,31 @@ function renderMyItems(filter = '') {
 // ─── Render – Ox Items (paginated) ───────────────────────────────────────────
 function applyOxFilter(filter = '') {
     const f = filter.toLowerCase();
-    state.oxFiltered = state.oxItems.filter(it =>
+    let items = state.oxItems.filter(it =>
         it.name.includes(f) || (it.label || '').toLowerCase().includes(f)
     );
+    if (state.showDuplicatesOnly) {
+        const dupes = buildDuplicateLabelSet(state.oxItems);
+        items = items.filter(it => dupes.has(it.name));
+    }
+    state.oxFiltered = items;
     state.oxPage = 0;
 }
 
 function renderOxPage() {
-    const grid   = document.getElementById('gridOx');
-    const empty  = document.getElementById('emptyOx');
+    const grid    = document.getElementById('gridOx');
+    const empty   = document.getElementById('emptyOx');
     const countEl = document.getElementById('countOx');
-    const pager  = document.getElementById('oxPager');
+    const pager   = document.getElementById('oxPager');
+    const btnDupe = document.getElementById('btnDeleteDuplicates');
+    const btnShow = document.getElementById('btnShowDuplicates');
 
-    const total   = state.oxFiltered.length;
+    // Update duplicate-mode button states
+    btnShow.classList.toggle('active-filter', state.showDuplicatesOnly);
+    btnShow.textContent = state.showDuplicatesOnly ? 'Show all items' : 'Show duplicates';
+    btnDupe.classList.toggle('hidden', !state.showDuplicatesOnly);
+
+    const total    = state.oxFiltered.length;
     const allTotal = state.oxItems.length;
     countEl.textContent = `${total} / ${allTotal}`;
 
@@ -160,28 +188,37 @@ function renderOxPage() {
     empty.classList.add('hidden');
 
     if (total === 0) {
-        grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:20px">No items match your search.</p>';
+        grid.innerHTML = state.showDuplicatesOnly
+            ? '<p style="color:var(--text-muted);font-size:13px;padding:20px">No duplicate labels found.</p>'
+            : '<p style="color:var(--text-muted);font-size:13px;padding:20px">No items match your search.</p>';
         pager.classList.add('hidden');
         return;
     }
 
     const totalPages = Math.ceil(total / state.OX_PAGE_SIZE);
-    const page = Math.min(state.oxPage, totalPages - 1);
-    state.oxPage = page;
+    state.oxPage = Math.min(state.oxPage, totalPages - 1);
 
-    const slice = state.oxFiltered.slice(page * state.OX_PAGE_SIZE, (page + 1) * state.OX_PAGE_SIZE);
+    const slice = state.oxFiltered.slice(
+        state.oxPage * state.OX_PAGE_SIZE,
+        (state.oxPage + 1) * state.OX_PAGE_SIZE
+    );
+
+    // Build a per-label colour map so duplicates are visually grouped
+    const dupeSet = state.showDuplicatesOnly ? buildDuplicateLabelSet(state.oxItems) : new Set();
 
     const frag = document.createDocumentFragment();
     slice.forEach(item => {
         const sel = state.selectedOx.has(item.name);
+        const isDupe = dupeSet.has(item.name);
         const div = document.createElement('div');
-        div.className = `item-card${sel ? ' selected' : ''}`;
+        div.className = `item-card${sel ? ' selected' : ''}${isDupe ? ' dupe-card' : ''}`;
         div.dataset.name = item.name;
         div.dataset.type = 'ox';
         div.innerHTML = `
             <input type="checkbox" class="card-checkbox" ${sel ? 'checked' : ''} onclick="event.stopPropagation()" data-cb-name="${escHtml(item.name)}" data-cb-type="ox" />
             ${item.sensitive ? '<span class="sensitive-badge">sensitive</span>' : ''}
-            <div class="card-image">${cardImageHTML(item, true)}</div>
+            ${isDupe ? '<span class="dupe-badge">duplicate</span>' : ''}
+            <div class="card-image">${cardImageHTML(item)}</div>
             <div class="card-name">${escHtml(item.label || item.name)}</div>
             <div class="card-key">${escHtml(item.name)}</div>
             <div class="card-meta">
@@ -193,36 +230,35 @@ function renderOxPage() {
     grid.innerHTML = '';
     grid.appendChild(frag);
 
-    // Pager
     if (totalPages <= 1) {
         pager.classList.add('hidden');
     } else {
         pager.classList.remove('hidden');
-        document.getElementById('oxPageInfo').textContent = `Page ${page + 1} of ${totalPages}`;
-        document.getElementById('oxPrev').disabled = page === 0;
-        document.getElementById('oxNext').disabled = page === totalPages - 1;
+        document.getElementById('oxPageInfo').textContent = `Page ${state.oxPage + 1} of ${totalPages}`;
+        document.getElementById('oxPrev').disabled = state.oxPage === 0;
+        document.getElementById('oxNext').disabled = state.oxPage === totalPages - 1;
     }
 }
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
 function openModal(item = null, isOxItem = false) {
-    state.editingItem    = item ? item.name : null;
-    state.editingOxItem  = isOxItem ? item : null;
+    state.editingItem   = item ? item.name : null;
+    state.editingOxItem = isOxItem ? item : null;
 
     document.getElementById('modalTitle').textContent = item ? (isOxItem ? 'Override Item' : 'Edit Item') : 'Add Item';
     document.getElementById('modalSave').textContent  = item ? (isOxItem ? 'Override Item' : 'Save Changes') : 'Add Item';
 
-    document.getElementById('fieldName').value    = item ? item.name  : '';
-    document.getElementById('fieldName').disabled = !!item;
-    document.getElementById('fieldLabel').value   = item ? (item.label || '') : '';
-    document.getElementById('fieldWeight').value  = item ? (item.weight || 100) : 100;
-    document.getElementById('fieldImage').value   = item ? (item.imageUrl || '') : '';
-    document.getElementById('fieldDesc').value    = item ? (item.description || '') : '';
+    document.getElementById('fieldName').value      = item ? item.name : '';
+    document.getElementById('fieldName').disabled   = !!item;
+    document.getElementById('fieldLabel').value     = item ? (item.label || '') : '';
+    document.getElementById('fieldWeight').value    = item ? (item.weight || 100) : 100;
+    document.getElementById('fieldImage').value     = item ? (item.imageUrl || '') : '';
+    document.getElementById('fieldDesc').value      = item ? (item.description || '') : '';
     document.getElementById('fieldStack').checked   = item ? item.stack !== false : true;
     document.getElementById('fieldClose').checked   = item ? item.close !== false : true;
     document.getElementById('fieldConsume').checked = item ? item.consume === true : false;
 
-    updatePreview(item ? resolveImageSrc(item, isOxItem) : null);
+    updatePreview(item ? resolveImageSrc(item) : null);
     document.getElementById('modalOverlay').classList.remove('hidden');
     if (!item) document.getElementById('fieldName').focus();
 }
@@ -230,13 +266,13 @@ function openModal(item = null, isOxItem = false) {
 function closeModal() {
     document.getElementById('modalOverlay').classList.add('hidden');
     document.getElementById('fieldName').classList.remove('error');
-    state.editingItem    = null;
-    state.editingOxItem  = null;
+    state.editingItem   = null;
+    state.editingOxItem = null;
 }
 
 function updatePreview(src) {
-    const img  = document.getElementById('previewImg');
-    const ph   = document.querySelector('.preview-placeholder');
+    const img = document.getElementById('previewImg');
+    const ph  = document.querySelector('.preview-placeholder');
     if (src) {
         img.src = src;
         img.style.display = 'block';
@@ -304,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Save
+    // Save (add or edit)
     document.getElementById('modalSave').addEventListener('click', async () => {
         const data = collectFormData();
         if (!data.name) {
@@ -324,13 +360,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Apply now
     document.getElementById('btnApply').addEventListener('click', async () => {
-        const ok = await confirm('Apply Items', 'This will register all your custom items in ox_inventory immediately. Continue?');
+        const ok = await showConfirm('Apply Items', 'This will register all your custom items in ox_inventory immediately. Continue?');
         if (ok) { nuiFetch('applyItems'); toast('Applying items to ox_inventory…', 'info'); }
     });
 
     // Refresh
     document.getElementById('btnRefreshMy').addEventListener('click', () => nuiFetch('getState'));
     document.getElementById('btnRefreshOx').addEventListener('click', () => nuiFetch('getState'));
+
+    // Show/hide duplicates toggle
+    document.getElementById('btnShowDuplicates').addEventListener('click', () => {
+        state.showDuplicatesOnly = !state.showDuplicatesOnly;
+        state.selectedOx.clear();
+        document.getElementById('selectAllOx').checked = false;
+        applyOxFilter(document.getElementById('searchOx').value);
+        renderOxPage();
+    });
+
+    // Delete duplicates (only selected items from the duplicate view)
+    document.getElementById('btnDeleteDuplicates').addEventListener('click', async () => {
+        if (state.selectedOx.size === 0) {
+            toast('Select the duplicates you want to delete first.', 'error');
+            return;
+        }
+        const ok = await showConfirm(
+            'Delete duplicates',
+            `Remove ${state.selectedOx.size} item(s) from ox_inventory on next Apply? This queues them for deletion.`
+        );
+        if (ok) {
+            nuiFetch('deleteItems', { names: [...state.selectedOx] });
+            state.selectedOx.clear();
+            document.getElementById('selectAllOx').checked = false;
+        }
+    });
 
     // Search – debounced
     let searchMyTimer, searchOxTimer;
@@ -346,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 150);
     });
 
-    // Pager buttons
+    // Pager
     document.getElementById('oxPrev').addEventListener('click', () => {
         if (state.oxPage > 0) { state.oxPage--; renderOxPage(); }
     });
@@ -362,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMyItems(document.getElementById('searchMy').value);
     });
 
-    // Select all – Ox (applies to full filtered set, not just current page)
+    // Select all – Ox (applies across all pages of the filtered set)
     document.getElementById('selectAllOx').addEventListener('change', e => {
         if (e.target.checked) state.oxFiltered.forEach(it => state.selectedOx.add(it.name));
         else state.selectedOx.clear();
@@ -372,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Delete selected (My)
     document.getElementById('btnDeleteSelected').addEventListener('click', async () => {
         if (state.selectedMy.size === 0) { toast('No items selected.', 'error'); return; }
-        const ok = await confirm('Delete Items', `Delete ${state.selectedMy.size} selected item(s)? This cannot be undone.`);
+        const ok = await showConfirm('Delete Items', `Delete ${state.selectedMy.size} selected item(s)? This cannot be undone.`);
         if (ok) { nuiFetch('deleteItems', { names: [...state.selectedMy] }); state.selectedMy.clear(); }
     });
 
@@ -406,14 +468,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = state.oxItems.find(it => it.name === card.dataset.name);
             if (!item) return;
             if (item.sensitive) {
-                const ok = await confirm('Sensitive Item', `"${item.label || item.name}" is a weapon/ammo item. Editing may affect gameplay balance. Continue?`);
+                const ok = await showConfirm('Sensitive Item', `"${item.label || item.name}" is a weapon/ammo item. Editing may affect gameplay balance. Continue?`);
                 if (!ok) return;
             }
             openModal(item, true);
         }
     });
 
-    // Escape
+    // Escape key
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
         if (!document.getElementById('confirmOverlay').classList.contains('hidden')) {
@@ -438,8 +500,8 @@ window.addEventListener('message', e => {
         }
 
         case 'stateResponse': {
-            state.myItems  = data.myItems || [];
-            state.oxItems  = (data.oxItems || []).sort((a, b) =>
+            state.myItems = data.myItems || [];
+            state.oxItems = (data.oxItems || []).sort((a, b) =>
                 (a.label || a.name).localeCompare(b.label || b.name)
             );
             applyOxFilter(document.getElementById('searchOx').value);
@@ -454,7 +516,7 @@ window.addEventListener('message', e => {
                 renderMyItems(document.getElementById('searchMy').value);
                 toast(`Item "${data.label || data.name}" added.`, 'success');
             } else {
-                toast(data || 'Failed to add item.', 'error');
+                toast(typeof data === 'string' ? data : 'Failed to add item.', 'error');
             }
             break;
         }
@@ -466,7 +528,7 @@ window.addEventListener('message', e => {
                 renderMyItems(document.getElementById('searchMy').value);
                 toast(`Item "${data.label || data.name}" updated.`, 'success');
             } else {
-                toast(data || 'Failed to edit item.', 'error');
+                toast(typeof data === 'string' ? data : 'Failed to edit item.', 'error');
             }
             break;
         }

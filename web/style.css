@@ -246,6 +246,27 @@ body {
 .card-image-placeholder svg { width: 40px; height: 40px; color: var(--text-muted); }
 .card-name { font-size: 13px; font-weight: 600; text-align: center; color: var(--text-primary); }
 .card-key { font-size: 11px; color: var(--text-secondary); text-align: center; }
+.dupe-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(96,165,250,0.15);
+  border: 1px solid rgba(96,165,250,0.4);
+  color: #60a5fa;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 6px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+/* when sensitive badge already occupies top-right, shift dupe badge down */
+.item-card .sensitive-badge ~ .dupe-badge {
+  top: 30px;
+}
+.dupe-card {
+  border-color: rgba(96,165,250,0.25);
+}
+.active-filter {
+  background: rgba(96,165,250,0.15) !important;
+  border-color: rgba(96,165,250,0.5) !important;
+  color: #60a5fa !important;
+}
 .card-meta {
   display: flex; align-items: center; gap: 6px;
   margin-top: 2px;
