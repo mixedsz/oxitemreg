@@ -32,22 +32,29 @@ local function loadRegisteredItems()
     end
 end
 
----Register or update an item in ox_inventory at runtime
+---Register or update an item in ox_inventory at runtime.
+-- ox_inventory has no RegisterItem export. Instead, Items() returns a reference
+-- to the internal items table, so writing into it registers the item immediately.
 local function applyItemToOxInventory(item)
-    -- ox_inventory:RegisterItem(name, data) — name is the first argument, NOT inside the table
     local ok, err = pcall(function()
-        exports.ox_inventory:RegisterItem(item.name, {
-            label       = item.label,
+        local items = exports.ox_inventory:Items()
+        if type(items) ~= 'table' then
+            error('ox_inventory:Items() did not return a table')
+        end
+        items[item.name] = {
+            name        = item.name,
+            label       = item.label or item.name,
             weight      = item.weight or 100,
             stack       = item.stack ~= false,
             close       = item.close ~= false,
-            consume     = item.consume and 1 or nil,
+            consume     = item.consume and 1 or 0,
             description = item.description or nil,
             client      = { image = item.name },
-        })
+            buttons     = {},
+        }
     end)
     if not ok then
-        print('^1[oxitemreg] RegisterItem failed for "' .. tostring(item.name) .. '": ' .. tostring(err) .. '^7')
+        print('^1[oxitemreg] Failed to inject item "' .. tostring(item.name) .. '": ' .. tostring(err) .. '^7')
     end
     return ok
 end
