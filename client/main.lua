@@ -32,9 +32,9 @@ RegisterNetEvent('oxitemreg:deleteItemsResponse', function(success)
     SendNUIMessage({ type = 'deleteItemsResponse', success = success })
 end)
 
-RegisterNetEvent('oxitemreg:applyResponse', function(applied, failed)
-    SendNUIMessage({ type = 'applyResponse', applied = applied, failed = failed })
-    TriggerServerEvent('oxitemreg:getState')
+RegisterNetEvent('oxitemreg:applyResponse', function(applied, failed, restarting, errMsg)
+    SendNUIMessage({ type = 'applyResponse', applied = applied, failed = failed, restarting = restarting, errMsg = errMsg })
+    -- Don't refresh state immediately if ox_inventory is restarting — it'll be unavailable briefly
 end)
 
 RegisterNetEvent('oxitemreg:imageCached', function(url, b64)

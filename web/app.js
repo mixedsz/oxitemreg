@@ -544,11 +544,11 @@ window.addEventListener('message', e => {
         }
 
         case 'applyResponse': {
-            if (applied > 0) {
-                toast(`Applied ${applied} item(s). Reconnect to see them in-game.`, 'success', 5000);
-            }
-            if (failed > 0) {
-                toast(`${failed} item(s) failed — check server console.`, 'error', 5000);
+            const { applied, failed, restarting, errMsg } = e.data;
+            if (restarting) {
+                toast(`Saved ${applied} item(s) to ox_inventory. Restarting ox_inventory — reconnect in ~5s.`, 'success', 7000);
+            } else if (failed > 0) {
+                toast(`Apply failed: ${errMsg || 'check server console'}.`, 'error', 6000);
             }
             break;
         }
