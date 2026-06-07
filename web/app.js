@@ -87,16 +87,18 @@ function cardImageHTML(item) {
 }
 
 // ─── Duplicate detection ──────────────────────────────────────────────────────
-// Returns a Set of item names that share their label with at least one other item.
+// Returns a Set of item names whose label is EXACTLY the same (case-sensitive)
+// as at least one other item. "Ankle Monitor" and "ankle monitor" are NOT dupes;
+// three items all called "Backwood" ARE dupes.
 function buildDuplicateLabelSet(items) {
     const labelCount = {};
     items.forEach(it => {
-        const key = (it.label || it.name).toLowerCase();
+        const key = it.label || it.name;   // exact, no lowercasing
         labelCount[key] = (labelCount[key] || 0) + 1;
     });
     const dupeSet = new Set();
     items.forEach(it => {
-        const key = (it.label || it.name).toLowerCase();
+        const key = it.label || it.name;
         if (labelCount[key] > 1) dupeSet.add(it.name);
     });
     return dupeSet;
