@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Item Creator</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<!-- ── Backdrop ─────────────────────────────────────────────────────────── -->
+<div id="backdrop" class="hidden"></div>
+
+<!-- ── Main Panel ──────────────────────────────────────────────────────── -->
+<div id="panel" class="hidden">
+  <!-- Header -->
+  <div class="panel-header">
+    <div class="panel-title-group">
+      <div class="panel-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="panel-title">Item Creator</div>
+        <div class="panel-subtitle">ox_inventory custom item registry</div>
+      </div>
+    </div>
+    <div class="panel-actions">
+      <button class="btn btn-secondary" id="btnApply">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Apply now
+      </button>
+      <button class="btn btn-primary" id="btnAddItem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Item
+      </button>
+      <button class="btn-close" id="btnClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" data-tab="my" id="tabMy">My Items</button>
+    <button class="tab active" data-tab="all" id="tabAll">All ox_inventory Items</button>
+  </div>
+
+  <!-- Tab content: My Items -->
+  <div class="tab-content hidden" id="contentMy">
+    <div class="info-bar">
+      Items you've created or overridden. Add images by placing them in <code>web/images/</code>.
+    </div>
+    <div class="toolbar">
+      <label class="select-all-wrap">
+        <input type="checkbox" id="selectAllMy" />
+        <span>Select all</span>
+      </label>
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchMy" placeholder="Search my items..." />
+      </div>
+      <span class="item-count" id="countMy">0 / 0</span>
+      <button class="btn btn-danger btn-sm" id="btnDeleteSelected">Delete selected</button>
+      <button class="btn btn-secondary btn-sm" id="btnRefreshMy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="item-grid" id="gridMy"></div>
+    <div class="empty-state hidden" id="emptyMy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      <p>No custom items yet.<br/>Click <strong>+ Add Item</strong> to create one.</p>
+    </div>
+  </div>
+
+  <!-- Tab content: All ox_inventory Items -->
+  <div class="tab-content" id="contentAll">
+    <div class="info-bar">
+      Every item currently registered in <strong>ox_inventory</strong>. Click an item to edit it (creates an override); select items and delete to remove them on next apply.
+      <span class="info-warning">Sensitive items show a warning first.</span>
+    </div>
+    <div class="toolbar">
+      <label class="select-all-wrap">
+        <input type="checkbox" id="selectAllOx" />
+        <span>Select all</span>
+      </label>
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchOx" placeholder="Search ox_inventory items..." />
+      </div>
+      <span class="item-count" id="countOx">0 / 0</span>
+      <button class="btn btn-secondary btn-sm" id="btnRefreshOx">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="item-grid" id="gridOx"></div>
+    <div class="empty-state hidden" id="emptyOx">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p>No items found in ox_inventory.<br/>Is ox_inventory running?</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Item Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal" id="itemModal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Add Item</span>
+      <button class="btn-close" id="modalClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-left">
+        <div class="form-label">Preview</div>
+        <div class="image-preview" id="imgPreview">
+          <svg class="preview-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <img id="previewImg" src="" alt="" style="display:none" />
+        </div>
+      </div>
+      <div class="modal-right">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="fieldName">Item Name</label>
+            <input type="text" class="form-input" id="fieldName" placeholder="meth_tray" />
+            <div class="form-hint">Lowercase, no spaces. Used as the ox_inventory key.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fieldLabel">Display Label</label>
+            <input type="text" class="form-input" id="fieldLabel" placeholder="Meth Tray" />
+            <div class="form-hint">Shown in inventory and UIs.</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="fieldWeight">Weight (g)</label>
+            <input type="number" class="form-input" id="fieldWeight" value="100" min="0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fieldImage">Image URL</label>
+            <input type="text" class="form-input" id="fieldImage" placeholder="https://..." />
+            <div class="form-hint">Any direct image URL (https://...). Cached locally on save.</div>
+          </div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label" for="fieldDesc">Description</label>
+          <textarea class="form-input form-textarea" id="fieldDesc" placeholder="A short description shown in the inventory tooltip."></textarea>
+        </div>
+        <div class="toggle-row">
+          <label class="toggle-card">
+            <div class="toggle-wrap">
+              <input type="checkbox" id="fieldStack" checked />
+              <span class="toggle-slider"></span>
+            </div>
+            <div class="toggle-info">
+              <div class="toggle-name">Stackable</div>
+              <div class="toggle-desc">Same items combine into one slot.</div>
+            </div>
+          </label>
+          <label class="toggle-card">
+            <div class="toggle-wrap">
+              <input type="checkbox" id="fieldClose" checked />
+              <span class="toggle-slider"></span>
+            </div>
+            <div class="toggle-info">
+              <div class="toggle-name">Close on use</div>
+              <div class="toggle-desc">Inventory closes when used.</div>
+            </div>
+          </label>
+          <label class="toggle-card">
+            <div class="toggle-wrap">
+              <input type="checkbox" id="fieldConsume" />
+              <span class="toggle-slider"></span>
+            </div>
+            <div class="toggle-info">
+              <div class="toggle-name">Consumable</div>
+              <div class="toggle-desc">Removed after a single use.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalSave">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm / Warning Modal ──────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="confirmOverlay">
+  <div class="modal modal-sm" id="confirmModal">
+    <div class="modal-header">
+      <span class="modal-title" id="confirmTitle">Confirm</span>
+    </div>
+    <div class="modal-body confirm-body">
+      <p id="confirmMessage"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────────────────── -->
+<div id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
